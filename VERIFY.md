@@ -2,15 +2,24 @@
 
 Fresh-clone verification of [python-counter-hapax-lab](https://github.com/necat101/python-counter-hapax-lab).
 
+## Verification 2 – repair commit
+
+Implementation repair: deterministic top-token reporting, permutation footgun fails loudly.
+
 ```
-$ git clone https://github.com/necat101/python-counter-hapax-lab.git python-counter-hapax-lab-verify
-$ cd python-counter-hapax-lab-verify
+$ git clone https://github.com/necat101/python-counter-hapax-lab.git python-counter-hapax-lab-verify2
+$ cd python-counter-hapax-lab-verify2
+$ git checkout --detach 5dafe7fa4ae8ab1f7d33d0d641d735e81c85090f
+HEAD is now at 5dafe7f repair: deterministic top-token reporting, permutation footgun fails loudly
+
 $ git rev-parse HEAD
-e124696e9fe043427cdc01c3290bb59fa51d64f2
+5dafe7fa4ae8ab1f7d33d0d641d735e81c85090f
+
+$ python3 --version
+Python 3.12.3
 
 $ python3 run_lab.py
 === python-counter-hapax-lab ===
-
 counter_raw_baseline            hapaxes= 55  vocab= 77
 counter_lowercase_baseline      hapaxes= 47  vocab= 72
 naive_split_baseline            hapaxes= 62  vocab= 79
@@ -20,7 +29,6 @@ vocab_min_freq_2                hapaxes= 47  vocab= 72  min_freq=2  filtered_voc
 vocab_min_freq_3                hapaxes= 47  vocab= 72  min_freq=3  filtered_vocab=7
 deterministic_vocab_order       hapaxes= 47  vocab= 72
 naive_vocab_order               hapaxes= 47  vocab= 72
-
 --- tokenization expectations ---
   PASS  tokenize:word_regex 'Test test TEST'
   PASS  tokenize:word_regex 'hello, hello world! world.'
@@ -38,20 +46,19 @@ naive_vocab_order               hapaxes= 47  vocab= 72
   PASS  tokenize:naive_split_lower 'hello, hello world! world.'
   PASS  tokenize:naive_split_lower "don't stop can't won't"
   PASS  tokenize:naive_split_lower 'foo bar foo_bar foo-bar'
-
 --- ordering / permutation checks ---
   PASS  perm: counts match
   PASS  perm: hapax_set match
-  PASS  perm: insertion_order differs – yes (expected – first-seen order depends on record order)
+  PASS  perm: insertion_order differs – yes – first-seen order depends on record order (expected)
   PASS  perm: deterministic_order match
-
 --- sanity assertions ---
   PASS  lowercase hapax_count (47) <= raw (55)
   PASS  vocab sizes monotonic: min_freq=1 → 72, min_freq=2 → 25, min_freq=3 → 7
   PASS  47 hapax tokens correctly excluded from min_freq>=2 vocab
   PASS  deterministic vocab ordering is stable
-
+  PASS  top tokens use deterministic (-freq, token) ordering
 Wrote RESULTS.md
+run_lab.py exit status: 0
 
 $ python3 -m unittest tests.test_hapax -v
 test_case_normalization_reduces_hapax_count ... ok
@@ -60,16 +67,49 @@ test_naive_split_preserves_punctuation ... ok
 test_counts_and_hapaxes_match_across_permutations ... ok
 test_deterministic_order_stable_across_permutations ... ok
 test_insertion_order_changes_with_record_order ... ok
+test_reported_top_tokens_use_deterministic_order ... ok
 test_all_expectations ... ok
 test_hapaxes_excluded_from_min_freq_2 ... ok
 test_min_freq_thresholds_independently ... ok
-
 ----------------------------------------------------------------------
-Ran 9 tests in 0.009s
-
+Ran 10 tests in 0.005s
 OK
+unittest exit status: 0
+
+$ git diff --exit-code -- RESULTS.md
+$ echo $?
+0
+
+$ git status --short
+$
+```
+
+Verified commit: `5dafe7fa4ae8ab1f7d33d0d641d735e81c85090f`
+
+- run_lab.py exit status: 0
+- unittest exit status: 0 (10 tests)
+- `git diff --exit-code -- RESULTS.md`: clean
+- `git status --short`: clean
+
+All 10 unittest cases pass. All tokenization expectations pass. Ordering/permutation checks pass (insertion_order differs – footgun demonstrated). Top tokens use deterministic `(-freq, token)` ordering. Results match the committed `RESULTS.md`.
+
+---
+
+## Verification 1 – initial implementation
+
+```
+$ git clone https://github.com/necat101/python-counter-hapax-lab.git python-counter-hapax-lab-verify
+$ cd python-counter-hapax-lab-verify
+$ git rev-parse HEAD
+e124696e9fe043427cdc01c3290bb59fa51d64f2
 ```
 
 Verified commit: `e124696e9fe043427cdc01c3290bb59fa51d64f2`
 
-All 9 unittest cases pass. All tokenization expectations pass. Ordering/permutation checks pass. Results match the committed `RESULTS.md`.
+- run_lab.py exit status: 0
+- unittest exit status: 0 (9 tests)
+- All tokenization expectations pass
+- Ordering/permutation checks pass
+- Results match the committed `RESULTS.md`
+
+Note: this verification covers the pre-repair implementation where the "Top tokens" table in `RESULTS.md` used `Counter.most_common()` (first-seen tie-breaking) instead of the canonical `(-freq, token)` ordering, and the permutation insertion_order check was informational (always PASS) rather than failing if the footgun stopped being demonstrated. See Verification 2 above for the repaired implementation.
