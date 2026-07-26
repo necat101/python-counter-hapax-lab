@@ -80,16 +80,19 @@ def check_ordering_permutation() -> list[tuple[str, bool, str]]:
     ok = hap_a == hap_b
     results.append(("perm: hapax_set match", ok, "" if ok else "hapax sets differ"))
 
-    # Insertion order: record whether it differs (this is expected,
-    # not a failure – we just document it)
+    # Insertion order: must differ between the two permutations.
+    # This demonstrates the footgun: first-seen order depends on input
+    # presentation, so it is unsuitable for a canonical vocabulary order.
+    # If future case changes cause orders to match, FAIL – the test case
+    # no longer demonstrates the intended property.
     order_a = vocab_order_insertion(counts_a)
     order_b = vocab_order_insertion(counts_b)
     differs = order_a != order_b
     results.append((
         "perm: insertion_order differs",
-        True,  # informational, always pass
-        "yes (expected – first-seen order depends on record order)"
-        if differs else "no – insertion order happened to match"
+        differs,
+        "yes – first-seen order depends on record order (expected)"
+        if differs else "no – insertion order matched, test case no longer demonstrates the footgun!"
     ))
 
     # Deterministic order must match
@@ -185,6 +188,18 @@ def main() -> None:
     assert det_order == vocab_order_deterministic(counts_perm)
     print(f"  PASS  deterministic vocab ordering is stable")
 
+    # Top tokens reported in RESULTS.md must use deterministic (-freq, token) order
+    top_reported = vocab_order_deterministic(lower_res["counts"])[:15]
+    # Verify tied frequencies are alphabetically ordered
+    for i in range(len(top_reported) - 1):
+        tok_i = top_reported[i]
+        tok_j = top_reported[i + 1]
+        c_i = lower_res["counts"][tok_i]
+        c_j = lower_res["counts"][tok_j]
+        assert c_i > c_j or (c_i == c_j and tok_i <= tok_j), \
+            f"top tokens ordering violation: {tok_i}(n={c_i}) before {tok_j}(n={c_j})"
+    print(f"  PASS  top tokens use deterministic (-freq, token) ordering")
+
     # Write RESULTS.md
     with open("RESULTS.md", "w") as f:
         f.write("# RESULTS\n\n")
@@ -212,10 +227,12 @@ def main() -> None:
         f.write(f"- {len(hapax_tokens)} hapax tokens correctly excluded "
                 f"from min_freq>=2 vocab ✅\n")
         f.write(f"- deterministic vocab ordering is stable ✅\n")
+        f.write(f"- top tokens use deterministic (-freq, token) ordering ✅\n")
 
         f.write("\n## Top tokens (lowercase baseline)\n\n")
         f.write("| token | count |\n|-------|-------|\n")
-        for tok, c in lower_res["counts"].most_common(15):
+        for tok in top_reported:
+            c = lower_res["counts"][tok]
             f.write(f"| {tok} | {c} |\n")
 
         f.write("\n## Hapax tokens (lowercase baseline)\n\n")

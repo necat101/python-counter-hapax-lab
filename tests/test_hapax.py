@@ -150,6 +150,28 @@ class TestOrderingPermutation(unittest.TestCase):
                 f"ordering violation: {tok_i}(n={c_i}) before {tok_j}(n={c_j})"
             )
 
+    def test_reported_top_tokens_use_deterministic_order(self):
+        """Top tokens reported in RESULTS.md must use (-freq, token) ordering,
+        not Counter.most_common() first-seen tie-breaking."""
+        res = counter_lowercase_baseline(RECORDS)
+        counts = res["counts"]
+        top_reported = vocab_order_deterministic(counts)[:15]
+        # Verify: descending freq, ties broken alphabetically
+        for i in range(len(top_reported) - 1):
+            tok_i = top_reported[i]
+            tok_j = top_reported[i + 1]
+            c_i = counts[tok_i]
+            c_j = counts[tok_j]
+            self.assertTrue(
+                c_i > c_j or (c_i == c_j and tok_i <= tok_j),
+                f"top tokens ordering violation: "
+                f"{tok_i}(n={c_i}) before {tok_j}(n={c_j})"
+            )
+        # Specifically: the n=3 group should be alphabetically ordered
+        n3_tokens = [tok for tok in top_reported if counts[tok] == 3]
+        self.assertEqual(n3_tokens, sorted(n3_tokens),
+                         "n=3 tied tokens must be alphabetically ordered")
+
 
 class TestNaiveSplitFootgun(unittest.TestCase):
     """Test that naive str.split() creates spurious hapaxes from punctuation."""
